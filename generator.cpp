@@ -10,7 +10,7 @@ Graph *BuildQuads(unsigned steps, bool assure_uncolorable) {
     Face *outer_face = G->faces[0];
     int probability;
     int index_one, index_two;
-    for (int j = 0; j < steps; j++) {
+    for (unsigned j = 0; j < steps; j++) {
         // Randomly choose edge to join and split
         index_one = std::rand() % outer_face->vertices.size();
         probability = std::rand() % 3;
@@ -68,7 +68,7 @@ Graph *BuildQuads(unsigned steps, bool assure_uncolorable) {
 
 Graph *build_with_no_triangles(unsigned steps, unsigned extensions) {
     Graph *g = BuildQuads(steps, false);
-
+    //printf("qb ");
     for(unsigned i = 0; i < extensions; i++)
     {
         Face * f = g->faces[rand() % g->faces.size()];
@@ -76,7 +76,38 @@ Graph *build_with_no_triangles(unsigned steps, unsigned extensions) {
         Split(g, e);
     }
 
+    //printf("%f\n", ((double)g->edges.size()) / g->vertices.size());
+
     return g;
+}
+
+Graph *build_model2(unsigned vertices, unsigned swaps, unsigned deletions)
+{
+    Graph *g = build_triangulation(vertices);
+    //g->label_edges();
+    modify_triangulation(g, swaps);
+    erase_edges(g, deletions);
+    return g;
+}
+
+Graph *build_model2_dense(int steps)
+{
+    return build_model2(steps, steps*10, steps/20);
+}
+
+Graph *build_model2_med(int steps)
+{
+    return build_model2(steps, steps*10, steps - 3);
+}
+
+Graph *build_model2_sparse(int steps)
+{
+    return build_model2(steps, steps*10, (3*steps)/2 - 5);
+}
+
+Graph *build_no_triangles_insert_ludicrous(int steps)
+{
+    return build_with_no_triangles(steps, 3*steps);
 }
 
 Graph *build_no_triangles_insert_many(int steps)

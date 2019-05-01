@@ -494,7 +494,11 @@ Graph *build_triangulation(unsigned vertices) {
 /**
 Swaps an edge in a triangulation.
 */
-void make_swap_along_edge(Graph *g, Edge *e) {
+bool make_swap_along_edge(Graph *g, Edge *e) {
+    //printf("swapping...");
+    //g->print_graph();
+    //printf("edge: %d->%d", e->fromVertex->id, e->toVertex->id);
+
     Vertex *v_in_F1;
     Vertex *v_in_F2;
     for (Vertex *v : e->face1->vertices) {
@@ -502,223 +506,147 @@ void make_swap_along_edge(Graph *g, Edge *e) {
             v_in_F1 = v;
         }
     }
-
     for (Vertex *v : e->face2->vertices) {
         if (v != e->fromVertex && v != e->toVertex) {
             v_in_F2 = v;
         }
     }
 
+    for(Edge *e : v_in_F1->edges){ //check if this swap doesnt make a multigraph
+        if((v_in_F1 == e->fromVertex && v_in_F2 == e->toVertex) || (v_in_F1 == e->toVertex && v_in_F2 == e->fromVertex)){
+            return false;
+        }
+    }
     //rotating left : IMPORTANT
 
-    std::vector<Face *>::iterator it = std::find(e->fromVertex->faces.begin(), e->fromVertex->faces.end(), e->face2);
+    auto it = std::find(e->fromVertex->faces.begin(), e->fromVertex->faces.end(), e->face2);
     e->fromVertex->faces.erase(it);
     it = std::find(e->toVertex->faces.begin(), e->toVertex->faces.end(), e->face1);
     e->toVertex->faces.erase(it);
-
-
     v_in_F1->faces.push_back(e->face2);
     v_in_F2->faces.push_back(e->face1);
-
     v_in_F1->edges.push_back(e);
     v_in_F2->edges.push_back(e);
-
-    //done
-    //section 2 :
-
-    std::vector<Edge *>::iterator it2 = std::find(e->fromVertex->edges.begin(), e->fromVertex->edges.end(), e);
-    e->fromVertex->edges.erase(it2);
-    it2 = std::find(e->toVertex->edges.begin(), e->toVertex->edges.end(), e);
-    e->toVertex->edges.erase(it2);
+    auto edge_it = std::find(e->fromVertex->edges.begin(), e->fromVertex->edges.end(), e);
+    e->fromVertex->edges.erase(edge_it);
+    edge_it = std::find(e->toVertex->edges.begin(), e->toVertex->edges.end(), e);
+    e->toVertex->edges.erase(edge_it);
 
     //erased from the former two points
-
-    for (int i = 0; i < e->face1->vertices.size(); i++) {
+    for (unsigned i = 0; i < e->face1->vertices.size(); i++) {
         if (e->face1->vertices[i] == e->toVertex) {
             e->face1->vertices[i] = v_in_F2;
         }
     }
-
-    for (int i = 0; i < e->face2->vertices.size(); i++) {
+    for (unsigned i = 0; i < e->face2->vertices.size(); i++) {
         if (e->face2->vertices[i] == e->fromVertex) {
             e->face2->vertices[i] = v_in_F1;
         }
     }
 
-    //correct till here
-
     int edge_to_swap;
-
-    // TOHLE NEFUNGUJE, TAKOVA HRANA MOZNA NEEXISTUJE
-    for (int i = 0; i < e->face1->edges.size(); i++) {
-        //could be written as e->face1->edges[i] != e //!(e->face1->edges[i]->toVertex == e->toVertex && e->face1->edges[i]->fromVertex == e->fromVertex
-        if (e->face1->edges[i] != e) {
-            if (e->face1->edges[i]->toVertex == e->toVertex || e->face1->edges[i]->fromVertex ==
-                                                               e->toVertex) { //the only edge is not the e and it is connected with to Vertex
+    for (unsigned i = 0; i < e->face1->edges.size(); i++) {
+        auto edge = e->face1->edges[i];
+        if (edge != e) {
+            if (edge->toVertex == e->toVertex ||
+                edge->fromVertex == e->toVertex) { //the only edge is not the e and it is connected with to Vertex
                 edge_to_swap = i;
+                //printf("%d->%d faces-pre: %d %d\n", edge->fromVertex->id, edge->toVertex->id, edge->face1->id, edge->face2->id);
+                if (edge->face1 == e->face1) edge->face1 = e->face2;
+                else edge->face2 = e->face2;
+                //printf("%d->%d faces-post: %d %d\n", edge->fromVertex->id, edge->toVertex->id, edge->face1->id, edge->face2->id);
+                //break;
             }
         }
     }
-
-    printf("%d->%d\t", g->edges[edge_to_swap]->fromVertex->id, g->edges[edge_to_swap]->toVertex->id);
-
-    for (int i = 0; i < e->face2->edges.size(); i++) {
-        if (e->face2->edges[i] != e) {
-            if (e->face2->edges[i]->fromVertex == e->fromVertex || e->face2->edges[i]->toVertex == e->fromVertex) {
+    for (unsigned i = 0; i < e->face2->edges.size(); i++) {
+        auto edge = e->face2->edges[i];
+        if (edge != e) {
+            if (edge->fromVertex == e->fromVertex || edge->toVertex == e->fromVertex) {
+                if (edge->face1 == e->face2) edge->face1 = e->face1;
+                else edge->face2 = e->face1;
+                //printf("swapping %d->%d and %d->%d\t", e->face1->edges[edge_to_swap]->fromVertex->id, e->face1->edges[edge_to_swap]->toVertex->id, edge->fromVertex->id, edge->toVertex->id);
                 std::swap(e->face1->edges[edge_to_swap], e->face2->edges[i]);
             }
         }
     }
-
-    //done
-
-    e->fromVertex = v_in_F2; // checked everything and I hope it is working now
+    e->fromVertex = v_in_F2;
     e->toVertex = v_in_F1;
+    //printf("swapped\n");
+    return true;
 }
 
 /**
 Randomly swaps edges in given triangulation.
 */
-void modify_triangulation(Graph *g, unsigned steps, unsigned seed = 7) {
-    srand(seed);
+void modify_triangulation(Graph *g, unsigned steps) {
     unsigned size = g->edges.size();
 
     for (unsigned i = 0; i < steps; i++) {
-        make_swap_along_edge(g, g->edges[rand() % size]);
+        while(!make_swap_along_edge(g, g->edges[rand() % size])) {}
     }
 }
 
 /**
-Deletes an edge updating faces and vertices.
+Deletes an edge (with one face) updating faces and vertices. Does not maintain the order along faces.
 */
 void delete_edge(Graph *g, Edge *e) {
-    // Remove references to e and f2:
 
-    std::vector<Face *>::iterator it = std::find(e->toVertex->faces.begin(), e->toVertex->faces.end(), e->face2);
-    e->toVertex->faces.erase(it);
+    //g->print_graph();
+    // Remove references to e and face2:
 
-    it = std::find(e->fromVertex->faces.begin(), e->fromVertex->faces.end(), e->face2);
-    e->fromVertex->faces.erase(it);
+    // Vertices of e are not incident with face2 anymore:
+    auto it_f = std::find(e->toVertex->faces.begin(), e->toVertex->faces.end(), e->face2);
+    e->toVertex->faces.erase(it_f);
+    it_f = std::find(e->fromVertex->faces.begin(), e->fromVertex->faces.end(), e->face2);
+    e->fromVertex->faces.erase(it_f);
 
-    auto it5 = std::find(g->edges.begin(), g->edges.end(), e); //wrong time again
-    g->edges.erase(it5);
+    auto it_e = std::find(g->edges.begin(), g->edges.end(), e);
+    g->edges.erase(it_e);
+    it_e = std::find(e->toVertex->edges.begin(), e->toVertex->edges.end(), e);
+    e->toVertex->edges.erase(it_e);
+    it_e = std::find(e->fromVertex->edges.begin(), e->fromVertex->edges.end(), e);
+    e->fromVertex->edges.erase(it_e);
+    it_e = std::find(e->face1->edges.begin(), e->face1->edges.end(), e);
+    e->face1->edges.erase(it_e);
 
-    std::vector<Edge *>::iterator it2 = std::find(e->toVertex->edges.begin(), e->toVertex->edges.end(), e);
-    e->toVertex->edges.erase(it2);
-
-    it2 = std::find(e->fromVertex->edges.begin(), e->fromVertex->edges.end(), e);
-    e->fromVertex->edges.erase(it2);
-
-    auto it3 = std::find(g->faces.begin(), g->faces.end(), e->face2); //it2 was an iterator od edge
-    g->faces.erase(it3);
-
-    printf("up here");
+    it_f = std::find(g->faces.begin(), g->faces.end(), e->face2);
+    g->faces.erase(it_f);
 
     for (Edge *e2 : e->face2->edges) {
         if (e2 == e) continue;
-
         if (e2->face1 == e->face2) e2->face1 = e->face1;
         if (e2->face2 == e->face2) e2->face2 = e->face1;
+        // Add to face1:
+        e->face1->edges.push_back(e2);
     }
 
     for (Vertex *v : e->face2->vertices) {
-        it = std::find(v->faces.begin(), v->faces.end(), e->face2);
-        (*it) = e->face1;
+        if (v == e->fromVertex || v == e->toVertex) continue;
+        it_f = std::find(v->faces.begin(), v->faces.end(), e->face2);
+        (*it_f) = e->face1;
+        // Add to face1:
+        e->face1->vertices.push_back(v);
     }
-
-    printf("here");
-
-    // Update vertices of face1:
-
-    // Find where to add from face2:
-    int index2 = 0, siz2 = e->face2->vertices.size();
-    for (;; index2++) {
-        if ((e->face2->vertices[index2] == e->fromVertex || e->face2->vertices[index2] == e->toVertex)
-            && e->face2->vertices[(index2 + 1) % siz2] != e->fromVertex
-            && e->face2->vertices[(index2 + 1) % siz2] != e->toVertex)
-            break;
-    }
-
-    // Find where to add to face1:
-    int index1 = 0, siz1 = e->face1->vertices.size();
-    for (;; index1++) {
-        printf("looping %d->%d", e->face1->vertices[index1]->id, e->face1->vertices[(index1 + 1) % siz1]->id);
-        printf("%d", (e->face1->vertices[index1] == e->fromVertex || e->face1->vertices[index1] == e->toVertex));
-        printf("%d", (e->face1->vertices[(index1 + 1) % siz1] == e->fromVertex ||
-                      e->face1->vertices[(index1 + 1) % siz1] == e->toVertex));
-        if ((e->face1->vertices[index1] == e->fromVertex || e->face1->vertices[index1] == e->toVertex)
-            && (e->face1->vertices[(index1 + 1) % siz1] == e->fromVertex ||
-                e->face1->vertices[(index1 + 1) % siz1] == e->toVertex))
-            break;
-    }
-
-    printf("in the middle");
-
-    for (auto *ver : e->face2->vertices) printf("%d ", ver->id);
-
-    // Order is different on both faces:
-    if (e->face1->vertices[index1] != e->face2->vertices[index2]) {
-        std::reverse(e->face2->vertices.begin(), e->face2->vertices.end());
-        index2--;
-        index2 = siz2 - index2 - 1;
-        printf("reversed");
-    }
-
-    printf("almost there");
-
-    printf("index: %d id: %d\n", index1, e->face1->vertices[index1]->id);
-    printf("index: %d id: %d\n", index2, e->face2->vertices[index2]->id);
-
-    for (auto *ver : e->face1->vertices) printf("%d ", ver->id);
-    printf("face2");
-    for (auto *ver : e->face2->vertices) printf("%d ", ver->id);
-
-    e->face1->vertices.insert(e->face1->vertices.begin() + index1, e->face2->vertices.begin() + index2 + 1,
-                              e->face2->vertices.end());
-
-    printf("one last");
-
-    for (auto *ver : e->face1->vertices) printf("%d ", ver->id);
-
-    e->face1->vertices.insert(e->face1->vertices.begin() + index1 + siz2 - index2 - 1, e->face2->vertices.begin(),
-                              e->face2->vertices.begin() + index2 - 1);
-
-    printf("there");
-    // Update edges of face1:
-
-    index1 = 0;
-    for (; e->face1->edges[index1] != e; index1++) {}
-
-    index2 = 0;
-    std::reverse(e->face2->edges.begin(), e->face2->edges.end());
-    for (; e->face2->edges[index2] == e; index2++) {}
-
-    std::vector < Edge * > old(e->face1->edges);
-    e->face1->edges.clear();
-
-    // Create new list of edges for face1:
-    e->face1->edges.insert(e->face1->edges.end(), old.begin(), old.begin() + index1);
-    e->face1->edges.insert(e->face1->edges.end(), e->face2->edges.begin(), e->face2->edges.begin() + index2);
-    e->face1->edges.insert(e->face1->edges.end(), old.begin() + index1 + 1, old.end());
-    e->face1->edges.insert(e->face1->edges.end(), e->face2->edges.begin() + index2 + 1, e->face2->edges.end());
 
     delete e->face2;
     delete e;
 
+   // g->print_graph();
 }
 
 /**
 Finds edges and removes them, preserving 2-connectivity.
 Abyssal running time.
 */
-void erase_edges(Graph *g, unsigned amount, unsigned seed = 7) {
-    if (g->vertices.size() - 1 + amount > g->edges.size()) {
-        throw 13;
+void erase_edges(Graph *g, unsigned amount) {
+    g->label_edges();
+    if (amount >= g->edges.size() - g->vertices.size()) {
+        printf("Graph has %d edges, cannot delete %d", g->edges.size(), amount);
+        exit(13);
     }
 
-    srand(seed);
-
-    for (int i = 0; i < amount; i++) {
+    for (unsigned i = 0; i < amount; i++) {
         Edge *e;
 
         // Remove next edge:
@@ -728,8 +656,8 @@ void erase_edges(Graph *g, unsigned amount, unsigned seed = 7) {
             // Test if removing breaks 2-connectedness
             // i.e. Faces share more than this edge
             bool fail = false;
-            for (int j = 0; !fail && j < e->face1->edges.size(); j++) {
-                for (int k = 0; !fail && k < e->face2->edges.size(); k++) {
+            for (unsigned j = 0; !fail && j < e->face1->edges.size(); j++) {
+                for (unsigned k = 0; !fail && k < e->face2->edges.size(); k++) {
                     if (e->face1->edges[j] == e->face2->edges[k]) {
                         fail = e->face1->edges[j] != e;
                     }
@@ -737,7 +665,37 @@ void erase_edges(Graph *g, unsigned amount, unsigned seed = 7) {
             }
             if (!fail) break;
         }
-        printf("deleting %d->%d\n", e->fromVertex->id, e->toVertex->id);
+        //printf("deleting %d->%d\n", e->fromVertex->id, e->toVertex->id);
         delete_edge(g, e);
+    }
+}
+
+void Graph::print_graph() {
+    for(Edge * e : this->edges)
+    {
+        printf("%d(%d)->%d(%d) faces: %d %d\n", e->fromVertex->id, e->fromVertex->color, e->toVertex->id, e->toVertex->color, e->face1->id, e->face2->id);
+    }
+
+    for(Face * f : this->faces)
+    {
+        printf("%d:", f->id);
+        for(Vertex * v : f->vertices)
+            printf("%d\t", v->id);
+        for(Edge *e : f->edges)
+            printf("%d->%d\t", e->fromVertex->id, e->toVertex->id);
+        printf("\n");
+    }
+}
+
+void Graph::label_edges() {
+    int id = 0;
+    for(Vertex *v: this->vertices)
+    {
+        v->id = id++;
+    }
+    id = 0;
+    for(Face *f: this->faces)
+    {
+        f->id = --id;
     }
 }

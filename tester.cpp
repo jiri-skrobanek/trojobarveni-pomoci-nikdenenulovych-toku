@@ -7,14 +7,14 @@
 #include "heuristic_graph_coloring.cpp"
 #include "heuristic_brute.cpp"
 
-typedef double color_assigner(Graph *);
+typedef double color_assigner(Graph *, bool &);
 
-double time_graph_flow_old(Graph * g)
+double time_graph_flow_old(Graph * g, bool &colorable)
 {
     auto start = std::chrono::system_clock::now();
 
     g->get_dual_graph();
-    g->from_flow_to_color(&initiate_dinitz);
+    colorable = g->from_flow_to_color(&initiate_dinitz);
 
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> dur = (end-start);
@@ -24,16 +24,12 @@ double time_graph_flow_old(Graph * g)
     return dur.count();
 }
 
-double time_graph_flow_new(Graph * g)
+double time_graph_flow_new(Graph * g, bool &colorable)
 {
     auto start = std::chrono::system_clock::now();
 
     g->get_dual_graph();
-    if(g->from_flow_to_color(&heuristic_algorithm_the_first)){
-       //printf("Colorable heuristic ");
-    }else{
-       //printf("Not colorable heuristic ");
-    }
+    colorable = g->from_flow_to_color(&heuristic_algorithm_the_first);
 
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> dur = (end-start);
@@ -43,15 +39,11 @@ double time_graph_flow_new(Graph * g)
     return dur.count();
 }
 
-double time_graph_brute(Graph * g)
+double time_graph_brute(Graph * g, bool &colorable)
 {
     auto start = std::chrono::system_clock::now();
 
-    if(g->can_be_coloured()){
-       //printf("Colorable ");
-    }else{
-       //printf("Not colorable ");
-    }
+    colorable = g->can_be_coloured();
 
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> dur = (end-start);
@@ -65,15 +57,11 @@ double time_graph_brute(Graph * g)
     return dur.count();
 }
 
-double time_graph_brute_heuristic(Graph * g)
+double time_graph_brute_heuristic(Graph * g, bool &colorable)
 {
     auto start = std::chrono::system_clock::now();
 
-    if(g->heuristic_graph_coloring()){
-       //printf("Colorable ");
-    }else{
-       //printf("Not colorable ");
-    }
+    colorable = g->heuristic_graph_coloring();
 
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> dur = (end-start);
@@ -88,8 +76,10 @@ double * conduct_testing(int sample_size, int size, int seed, Graph *(*graph_gen
 {
     srand(seed);
     double * res = (double*)malloc(sizeof(double)*sample_size);
-    printf("RUNNING TESTS...\n");
-    //fprintf(result_file, "new,brute\n");
+    printf("RUNNING TESTS... SIZE: %d SAMPLE SIZE:%d\n", size, sample_size);
+
+    int colorable = 0;
+    bool ok = false;
 
     for(int i = 0; i < sample_size; i++)
     {
@@ -99,7 +89,9 @@ double * conduct_testing(int sample_size, int size, int seed, Graph *(*graph_gen
         //fprintf(result_file, "%.9f,", time_graph_flow_old(g));
         //for(auto &v : g->vertices) v->color = -1;
 
-        res[i] = fn(g);
+
+        res[i] = fn(g, ok);
+        colorable += ok;
         //for(auto &v : g->vertices) v->color = -1;
 
         //fprintf(result_file, "%.9f,", time_graph_brute_heuristic(g));
@@ -110,7 +102,7 @@ double * conduct_testing(int sample_size, int size, int seed, Graph *(*graph_gen
         //printf("TESTED GRAPH\n");
     }
 
-    printf("TESTS OK.\n");
+    printf("TESTS OK. %d COLORABLE\n", colorable);
     return res;
 }
 
@@ -121,7 +113,7 @@ void write_result(int size, double *times, int amount, FILE *file)
     {
         avg += times[i];
     }
-    printf("sum: %f ", avg);
+    //printf("sum: %f ", avg);
     avg /= amount;
     std::sort(times, times + amount);
 

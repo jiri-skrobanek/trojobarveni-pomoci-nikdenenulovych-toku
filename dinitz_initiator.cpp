@@ -60,21 +60,21 @@ Generate all possible assignments and run Dinitz algorithm with them
 bool initiate_dinitz(Graph *G) {
     std::vector < Vertex * > vertices_ptrs; //contains pointers to ambiguous vertices
     std::vector<int> excesses; //contains current excesses of ambiguous vertices, f.e. vertices_ptr[2] has current excess equal to excesses[2]
-    int sgn = 1;
+    int exc = 3;
     unsigned degree;
     //Find which excesses are changeable and create basic assignment
     for (unsigned i = 0; i < G->vertices.size(); i++) {
         degree = G->vertices[i]->edges.size();
-        if ((degree % 2) == 0) {
+        if (degree & 1) {
+            //if  degree is odd, set basic as value as +-3 (alternately)
+            excesses.push_back(exc);
+            exc *= -1;
+            vertices_ptrs.push_back(G->vertices[i]);
+        } else {
             if (degree > 4) {
                 excesses.push_back(0);
                 vertices_ptrs.push_back(G->vertices[i]);
             }
-        } else {
-            //if  degree is odd, set basic as value as +-3 (alternately)
-            excesses.push_back(3 * sgn);
-            sgn *= -1;
-            vertices_ptrs.push_back(G->vertices[i]);
         }
     }
 
@@ -88,18 +88,12 @@ bool initiate_dinitz(Graph *G) {
 
     G->vertices.push_back(source);
     G->vertices.push_back(sink);
-    //Test flow for all possible assignments //NOTE:No need to test all alignments (can be sped up twice)
+    //Test flow for all possible assignments
     while (true) {
-        //POSEM CELKEM VERIM, ZE TO FUNGUJE, respektive aspoň lehce jsem testoval generovani tech ohodnoceni a vypadaly funkčně
-
-        /*Funkce na přidání hran vedoucích do zdroje a stoku
-         -ve vektoru excesses jsou uloženy kolik hran se má z kterého vrcholu do stoku/zdroje přidat
-         -například pokud excesses[2] = -12, tak se ze zdroje přidá dvanáct hran směřujících do vrcholu vertices_ptrs[2]
-        */
-        for (int i = 0; i < excesses.size(); i++) {
+        for (unsigned i = 0; i < excesses.size(); i++) {
             if (excesses[i] >= 0) {
                 for (int j = 0; j < excesses[i]; j++) {
-                    Edge *created_edge = new Edge;                    //TADY SE TVORI TY VECI CO POTOM CHCI ZNICIT
+                    Edge *created_edge = new Edge;
                     created_edge->fromVertex = vertices_ptrs[i];
                     created_edge->toVertex = sink;
                     sink->edges.push_back(created_edge);
@@ -139,26 +133,25 @@ bool initiate_dinitz(Graph *G) {
         }
         */
         flow_successful = true;
-        for (int i = 0; i < source->edges.size(); i++) {
-            if (source->edges[i]->flow != 1) {
-                flow_successful = false;
-                break;
-            }
+        for (Edge *e : source->edges) {
+            if (e->flow == 1) continue;
+            flow_successful = false;
+            break;
         }
         // Remove added edges:
-        while (source->edges.size() > 0) {
+        while (source->edges.size()) {
             help_edge = source->edges.back();
-            source->edges.pop_back();        //POMOC NEMAM ABSOLUTNI PONETI JESTLI JE TOHLE SPRAVNE
-            help_edge->toVertex->edges.pop_back();    //CHCI PROSTE ZNICIT TY PRIDANE EDGE A ODSTRANIT JEJICH ZAZNAMY
+            source->edges.pop_back();
+            help_edge->toVertex->edges.pop_back();
             G->edges.pop_back();
-            delete help_edge;//delete[] help_edge;
+            delete help_edge;
         }
-        while (sink->edges.size() > 0) {
+        while (sink->edges.size()) {
             help_edge = sink->edges.back();
-            sink->edges.pop_back();                //POMOC NEMAM ABSOLUTNI PONETI JESTLI JE TOHLE SPRAVNE
-            help_edge->fromVertex->edges.pop_back();    //TO SAME TADY
+            sink->edges.pop_back();
+            help_edge->fromVertex->edges.pop_back();
             G->edges.pop_back();
-            delete help_edge;//delete[] help_edge;
+            delete help_edge;
         }
 
         if (flow_successful) break;
@@ -170,8 +163,8 @@ bool initiate_dinitz(Graph *G) {
     // Remove source and sink:
     G->vertices.pop_back();
     G->vertices.pop_back();
-    delete source;//delete[] source;					//TADY SE TAKY NECO NICI A NEVIM JESTLI SPRAVNE
-    delete sink;//delete[] sink;
+    delete source;
+    delete sink;
 
     return flow_successful;
 }
